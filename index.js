@@ -1,25 +1,23 @@
+'use strict';
+
 const express = require('express');
-const cors = require('cors');
 const mongoose = require('mongoose');
+const cors = require('cors');
 const dns = require('dns');
 const bodyParser = require('body-parser');
 require('dotenv').config();
 
 const app = express();
 
-// Middleware
-app.use(cors());
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(express.json());
-app.use('/public', express.static(process.cwd() + '/public'));
+// Basic Configuration
+const port = process.env.PORT || 3000;
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGO_URI, {
+// MongoDB
+mongoose.connect(process.env.DB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
 
-// Mongoose Model
 const urlSchema = new mongoose.Schema({
   original_url: String,
   short_url: Number
@@ -27,78 +25,65 @@ const urlSchema = new mongoose.Schema({
 
 const Url = mongoose.model('Url', urlSchema);
 
-// Counter (for simplicity)
-let counter = 1;
+// Middleware
+app.use(cors());
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use('/public', express.static(process.cwd() + '/public'));
+app.use(express.json());
 
-// Serve the frontend
-app.get('/', function (req, res) {
+// Serve frontend
+app.get('/', (req, res) => {
   res.sendFile(process.cwd() + '/views/index.html');
 });
 
-// ✅ POST: Create short URL
+// POST: Shorten URL
 app.post('/api/shorturl', async (req, res) => {
-  const input = req.body.url;
+  const inputUrl = req.body.url;
 
-  let urlObject;
+  let urlObj;
   try {
-    urlObject = new URL(input);
+    urlObj = new URL(inputUrl);
   } catch {
     return res.json({ error: 'invalid url' });
   }
 
-  dns.lookup(urlObject.hostname, async (err) => {
-    if (err) {
-      return res.json({ error: 'invalid url' });
+  dns.lookup(urlObj.hostname, async (err) => {
+    if (err) return res.json({ error: 'invalid url' });
+
+    let existing = await Url.findOne({ original_url: inputUrl });
+    if (existing) {
+      return res.json({
+        original_url: existing.original_url,
+        short_url: existing.short_url
+      });
     }
 
-    try {
-      const existing = await Url.findOne({ original_url: input });
-      if (existing) {
-        return res.json({
-          original_url: existing.original_url,
-          short_url: existing.short_url
-        });
-      }
+    let count = await Url.countDocuments({});
+    const newUrl = new Url({
+      original_url: inputUrl,
+      short_url: count + 1
+    });
 
-      const newUrl = new Url({
-        original_url: input,
-        short_url: counter++
-      });
+    await newUrl.save();
 
-      await newUrl.save();
-
-      res.json({
-        original_url: newUrl.original_url,
-        short_url: newUrl.short_url
-      });
-    } catch (err) {
-      res.status(500).json({ error: 'Server error' });
-    }
+    res.json({
+      original_url: newUrl.original_url,
+      short_url: newUrl.short_url
+    });
   });
 });
 
-// ✅ GET: Redirect short URL
+// GET: Redirect short URL
 app.get('/api/shorturl/:short_url', async (req, res) => {
-  const short = parseInt(req.params.short_url);
+  const shortUrl = parseInt(req.params.short_url);
 
-  if (isNaN(short)) {
-    return res.json({ error: 'Invalid short URL' });
-  }
+  const found = await Url.findOne({ short_url: shortUrl });
+  if (!found) return res.json({ error: 'No short URL found' });
 
-  try {
-    const entry = await Url.findOne({ short_url: short });
-    if (!entry) {
-      return res.json({ error: 'No short URL found' });
-    }
-
-    res.redirect(entry.original_url);
-  } catch (err) {
-    res.status(500).json({ error: 'Server error' });
-  }
+  res.redirect(found.original_url);
 });
 
 // Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`App listening on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Node.js listening ...${port}`);
 });
