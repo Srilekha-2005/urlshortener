@@ -1,32 +1,73 @@
 <!DOCTYPE html>
-
 <html>
   <head>
-    <title>URL Shortener Microservice | freeCodeCamp.org</title>
-    <link
-      rel="icon"
-      type="image/png"
-      href="https://cdn.freecodecamp.org/universal/favicons/favicon-16x16.png"
-    />
-    <link href="/public/style.css" rel="stylesheet" type="text/css" />
+    <title>URL Shortener Microservice</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 30px;
+        background-color: #f8f8f8;
+      }
+      fieldset {
+        width: 500px;
+        margin: auto;
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+      input[type="url"] {
+        width: 70%;
+        padding: 8px;
+        margin-right: 10px;
+      }
+      input[type="submit"] {
+        padding: 8px 16px;
+      }
+      #result {
+        text-align: center;
+        margin-top: 20px;
+      }
+    </style>
   </head>
-
   <body>
-    <h1>URL Shortener Microservice</h1>
-    <main>
-      <section>
-        <form action="api/shorturl" method="POST">
-          <fieldset>
-            <legend>URL Shortener</legend>
-            <label for="url_input">URL:</label>
-            <input id="url_input" type="text" name="url" placeholder="https://www.freecodecamp.org/" />
-            <input type="submit" value="POST URL" />
-          </fieldset>
-        </form>
-      </section>
-    </main>
-    <footer>
-      <p>By <a href="https://www.freecodecamp.org/">freeCodeCamp</a></p>
-    </footer>
+    <fieldset>
+      <legend><strong>URL Shortener</strong></legend>
+      <form id="shorturl-form">
+        <label for="url">URL:</label>
+        <input id="url" type="url" name="url" placeholder="https://www.freecodecamp.org/" required>
+        <input type="submit" value="POST URL">
+      </form>
+      <div id="result"></div>
+    </fieldset>
+
+    <script>
+      const form = document.getElementById('shorturl-form');
+      const resultDiv = document.getElementById('result');
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const url = form.url.value;
+
+        const res = await fetch('/api/shorturl', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `url=${encodeURIComponent(url)}`
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+          resultDiv.innerHTML = `<p style="color:red;">Error: ${data.error}</p>`;
+        } else {
+          resultDiv.innerHTML = `
+            <p>✅ Original URL: <a href="${data.original_url}" target="_blank">${data.original_url}</a></p>
+            <p>🔗 Short URL: <a href="/api/shorturl/${data.short_url}" target="_blank">/api/shorturl/${data.short_url}</a></p>
+          `;
+        }
+
+        form.reset(); // Clear the form
+      });
+    </script>
   </body>
 </html>
